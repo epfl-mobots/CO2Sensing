@@ -2,8 +2,10 @@
 This code is for the M5StickCPlus to read data from the SCD30 sensors at Bassenges and send it to the RPi for logging
 
   Recognized commands from serial:
-    - "Init"          : Resets the serial buffer and initializes sensor communication.
-    - "Get data"      : Prints the latest CO2, temperature, and humidity measurements for all sensors in the format [SCD30, sensor_nb, {CO2, temp, RH}].
+    - "Init"          : Resets the serial buffer and initializes sensor communication
+    - "Get data"      : Prints the latest CO2, temperature, and humidity measurements for all sensors in the format [SCD30, sensor_nb, {CO2, temp, RH}]
+    - "CalibrateAll"        : Calibrates all sensors to 400 ppm CO2
+    - "Calibrate sensor x"  : Calibrates sensor x to 400 ppm CO2
  
   M5StickCPlus button commands:
     - M5 button (A) press            : Navigate through sensors 1–6 (highlight selected one)
@@ -33,10 +35,10 @@ This code is for the M5StickCPlus to read data from the SCD30 sensors at Basseng
         • "Hold Right (5s): Init. selected sensor"
  
   Notes:
-    - Loop runs every 20ms to check buttons for responsiveness.
+    - Loop runs every 20ms to check buttons for responsiveness
     - Sensors are polled every SENSING_INTERVAL seconds (one sensor every ~SENSING_INTERVAL*1000/NUM_SENSORS ms)
-    - Display is updated every ACTUATING_INTERVAL seconds (>= SENSING_INTERVAL) after all sensors are polled.
-    - Serial output is printed every SERIAL_INTERVAL seconds (> SENSING_INTERVAL).
+    - Display is updated every ACTUATING_INTERVAL secondsafter all sensors are polled.
+    - Serial output is printed every SERIAL_INTERVAL seconds
 
 */
 #include "M5StickCPlus.h"
@@ -44,13 +46,13 @@ This code is for the M5StickCPlus to read data from the SCD30 sensors at Basseng
 
 #define NUM_SENSORS 6 // Number of sensors connected to the TCA9548A
 #define SENSING_INTERVAL 8 // Seconds
-#define ACTUATING_INTERVAL SENSING_INTERVAL // Seconds, must be >= SENSING_INTERVAL
-#define SERIAL_INTERVAL 10 // Seconds, must be > SENSING_INTERVAL
+#define ACTUATING_INTERVAL 8 // Seconds
+#define SERIAL_INTERVAL 10 // Seconds
 
 #define ADDRESS 0x70 // I2C address of the TCA9548A
 #define BAUD_RATE 115200
 
-#define DEBUG
+//#define DEBUG
 const static bool display = true;
 
 static SCD30 sensors[NUM_SENSORS]; // Create an array of SCD30 sensors
@@ -103,6 +105,27 @@ void displayStartingScreen() {
 
 // Display initialization status for a sensor
 void displayInitStatus(uint8_t sensor_nb, bool success) {
+    if (!display) return;
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.drawRect(rectX, rectY, rectWidth, rectHeight, WHITE);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(WHITE);
+
+    int textX = rectX + (rectWidth - 7 * 12) / 2;
+    int textY1 = rectY + (rectHeight - 2 * 16) / 2;
+    int textY2 = textY1 + 16;
+
+    M5.Lcd.setCursor(textX - 4, textY1);
+    M5.Lcd.print("SENSOR ");
+    M5.Lcd.print(sensor_nb + 1);
+    M5.Lcd.setCursor(textX - 4, textY2);
+    M5.Lcd.setTextColor(success ? GREEN : RED);
+    M5.Lcd.print(success ? "   OK" : "   FAIL");
+    delay(1000);
+}
+
+// Display calibration status for a sensor
+void displayCalibrationStatus(uint8_t sensor_nb, bool success) {
     if (!display) return;
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.drawRect(rectX, rectY, rectWidth, rectHeight, WHITE);
@@ -178,7 +201,7 @@ void displayZoomedSensor() {
     M5.Lcd.setTextColor(RED);
     M5.Lcd.print("    Hold Right (5s)");
     M5.Lcd.setTextColor(WHITE);
-    M5.Lcd.println(":\n Init. selected sensor");
+    M5.Lcd.println(":\n Calibrate sel. sensor");
 }
 
 // Display all sensor measurements for the current display mode
@@ -243,7 +266,7 @@ void displaySensorStates() {
     M5.Lcd.setTextColor(RED);
     M5.Lcd.print("    Hold Right (5s)");
     M5.Lcd.setTextColor(WHITE);
-    M5.Lcd.println(":\n   Init. all sensors");
+    M5.Lcd.println(":\n Calibrate all sensors");
 }
 
 // Function to select the TCA (I2C hub) channel 
@@ -264,18 +287,15 @@ void tcaselect(uint8_t i) {
 }
 
 // Function to parametrise the sensors
-// Parameters: sensingInterval: the interval between measurements in seconds, between 2 and 100 seconds
 static void parametriseSensors(int number){
-    sensors[number].setMeasurementInterval(SENSING_INTERVAL);//Change number of seconds between measurements: 2 to 1800 (30 minutes), stored in non-volatile memory of SCD30
+    sensors[number].setMeasurementInterval(SENSING_INTERVAL);
     delay(200);
     int interval = sensors[number].getMeasurementInterval();
+    #ifdef DEBUG
     char msg[50];
     sprintf(msg, "Measurement Interval: %d", interval);
-    #ifdef DEBUG
     Serial.println(msg);
     #endif
-
-    //The lab is ~400m above sealevel
     sensors[number].setAltitudeCompensation(400);
     delay(200);
 }
@@ -286,9 +306,9 @@ static void init_sensor(uint8_t sensor_nb){
     bool success = sensors[sensor_nb].begin(Wire);
     displayInitStatus(sensor_nb, success);
     while(!success){
+        #ifdef DEBUG
         char error_msg[50];
         sprintf(error_msg, "Error: Could not connect to sensor %d", sensor_nb);
-        #ifdef DEBUG
         Serial.println(error_msg);
         #endif 
         delay(500);
@@ -296,13 +316,56 @@ static void init_sensor(uint8_t sensor_nb){
         success = sensors[sensor_nb].begin(Wire);
         displayInitStatus(sensor_nb, success);
     }
- 
+    #ifdef DEBUG
     char success_msg[50];
     sprintf(success_msg, "Connected to sensor %d", sensor_nb);
-    #ifdef DEBUG
     Serial.println(success_msg);
     #endif
     parametriseSensors(sensor_nb);
+}
+
+// Function to calibrate a sensor
+static void calibrate_sensor(uint8_t sensor_nb){
+    tcaselect(sensor_nb);
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.drawRect(rectX, rectY, rectWidth, rectHeight, WHITE);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(WHITE);
+    int textX = rectX + (rectWidth - 7 * 12) / 2;
+    int textY1 = rectY + (rectHeight - 2 * 16) / 2;
+    M5.Lcd.setCursor(textX - 4, textY1);
+    M5.Lcd.print("SENSOR ");
+    M5.Lcd.print(sensor_nb + 1);
+    M5.Lcd.setCursor(textX - 7, textY1 + 16);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(ORANGE);
+    M5.Lcd.print("CALIBRAT.");
+    delay(500);
+
+    // Attempt calibration
+    sensors[sensor_nb].setForcedRecalibrationFactor(400);
+    delay(200); // Allow time for the command to process
+
+    // Verify by reading back CO2 to check if calibration took effect
+    bool success = false;
+    if (sensors[sensor_nb].dataAvailable()) {
+        uint16_t co2 = sensors[sensor_nb].getCO2();
+        // Check if CO2 reading is reasonable after calibration
+        success = (co2 > 0); // Basic check; adjust if needed
+    }
+
+    displayCalibrationStatus(sensor_nb, success);
+    #ifdef DEBUG
+    if (success) {
+        char success_msg[50];
+        sprintf(success_msg, "Calibrated sensor %d to 400 ppm", sensor_nb + 1);
+        Serial.println(success_msg);
+    } else {
+        char error_msg[50];
+        sprintf(error_msg, "Error: Calibration failed for sensor %d", sensor_nb + 1);
+        Serial.println(error_msg);
+    }
+    #endif
 }
 
 // Function to scan all I2C addresses and print the addresses of the devices found or an error message
@@ -342,7 +405,6 @@ static void scanI2CAddresses() {
 }
 
 // Function to format the latest measurements of the sensors to a log
-// Example of formatted log: "[SCD30, 2, {410, 23.2, 53.0}]"
 String format_log(uint8_t sensor_nb){
     String output = "[SCD30, ";
     output = output + String(sensor_nb + 1) + ", ";
@@ -421,6 +483,40 @@ void command_handler(String command){
     else if (command == "Get data"){
         for (int i = 0; i < NUM_SENSORS; i++){
             Serial.println(format_log(i));
+        }
+    }
+    else if (command == "CalibrateAll"){
+        #ifdef DEBUG
+        Serial.println("Calibrating all sensors");
+        #endif
+        for (int i = 0; i < NUM_SENSORS; i++){
+            calibrate_sensor(i);
+            delay(SENSING_INTERVAL*1000/(NUM_SENSORS+1)); // Small delay to maintain responsiveness
+        }
+        if (isZoomed) {
+            displayZoomedSensor();
+        } else {
+            displaySensorStates();
+        }
+    }
+    else if (command.startsWith("Calibrate sensor ")){
+        String sensor_num_str = command.substring(16); // Extract number after "Calibrate sensor "
+        sensor_num_str.trim();
+        int sensor_num = sensor_num_str.toInt();
+        if (sensor_num >= 1 && sensor_num <= NUM_SENSORS) {
+            #ifdef DEBUG
+            Serial.printf("Calibrating sensor %d\n", sensor_num);
+            #endif
+            calibrate_sensor(sensor_num - 1); // Convert to 0-based index
+            if (isZoomed) {
+                displayZoomedSensor();
+            } else {
+                displaySensorStates();
+            }
+        } else {
+            #ifdef DEBUG
+            Serial.printf("Error: Invalid sensor number %s (must be 1 to %d)\n", sensor_num_str.c_str(), NUM_SENSORS);
+            #endif
         }
     }
     else {
@@ -503,20 +599,20 @@ void loop(){
             }
         }
 
-        // Handle Button B long press (initialize sensors)
+        // Handle Button B long press (calibrate sensors)
         if (M5.BtnB.wasReleasefor(3500)) {
             if (isZoomed) {
                 #ifdef DEBUG
-                Serial.printf("Initializing selected sensor %d\n", selectedSensor);
+                Serial.printf("Calibrating selected sensor %d\n", selectedSensor);
                 #endif
-                init_sensor(selectedSensor - 1);
+                calibrate_sensor(selectedSensor - 1);
                 displayZoomedSensor();
             } else {
                 #ifdef DEBUG
-                Serial.println("Initializing all sensors");
+                Serial.println("Calibrating all sensors");
                 #endif
                 for (int i = 0; i < NUM_SENSORS; i++) {
-                    init_sensor(i);
+                    calibrate_sensor(i);
                     unsigned long start = millis();
                     while (millis() - start < SENSING_INTERVAL*1000/(NUM_SENSORS+1)) { M5.update(); }
                 }
