@@ -55,10 +55,10 @@ display it on the LCD, and send it to the RPi for logging.
 #define ACTUATING_INTERVAL 8 // Seconds
 #define SERIAL_INTERVAL 10 // Seconds
 
-#define ADDRESS 0x70 // I2C address of the TCA9548A
+#define ADDRESS 0x71 // I2C address of the TCA9548A
 #define BAUD_RATE 115200
 
-//#define DEBUG
+#define DEBUG
 const static bool display = true;
 
 static SCD30 sensors[NUM_SENSORS]; // Array of SCD30 sensors
