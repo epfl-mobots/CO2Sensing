@@ -1,10 +1,10 @@
 /* Cyril Monette, September 2024, modified by Romain Lattion for 6 SCD30, May 2025
 This code is for the M5StickCPlus to read data from the SCD30 sensors at Bassenges and send it to the RPi for logging,
-with additional BME68x sensor for weather data.
+with additional BME688 sensor for weather data.
 
   Recognized commands from serial:
     - "Init"          : Resets the serial buffer and initializes sensor communication
-    - "GetData"      : Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME68x data
+    - "GetData"      : Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data
     - "CalibrateAll"  : Calibrates all SCD30 sensors to 400 ppm CO2
     - "Calibrate sensor x"  : Calibrates SCD30 sensor x to 400 ppm CO2
 
@@ -22,16 +22,16 @@ with additional BME68x sensor for weather data.
         • Sensor 4: Channel 3
         • Sensor 5: Channel 4
         • Sensor 6: Channel 5
-    - 1 BME68x sensor connected directly to I2C bus at address 0x77
+    - 1 BME688 sensor connected directly to I2C bus at address 0x77
 
   Display:
-    - Main mode: Shows states of all SCD30 sensors (CO2, Temp, or Humidity) or BME68x data (Weather mode: Temp, Press, RH, Gas if enabled), with the selected SCD30 sensor highlighted in yellow. Includes button instructions.
+    - Main mode: Shows states of all SCD30 sensors (CO2, Temp, or Humidity) or BME688 data (Weather mode: Temp, Press, RH, Gas if enabled), with the selected SCD30 sensor highlighted in yellow. Includes button instructions.
     - Zoomed mode: Shows CO2, temperature, and humidity for the selected SCD30 sensor in CO2, Temp, Humidity modes; not available in Weather mode.
 
   Notes:
     - Loop runs every 20ms for button responsiveness.
     - SCD30 sensors are polled every SENSING_INTERVAL seconds (one sensor every ~SENSING_INTERVAL*1000/NUM_SENSORS ms).
-    - BME68x sensor is polled every SENSING_INTERVAL seconds.
+    - BME688 sensor is polled every SENSING_INTERVAL seconds.
     - Serial output is printed every SERIAL_INTERVAL seconds if SERIAL_DISPLAY is defined, or on "Get data" command.
 */
 #include "M5StickCPlus.h"
@@ -61,14 +61,14 @@ static uint16_t co2_meas[NUM_SENSORS]={0}; // SCD30 CO2 measurements
 static float rh_meas[NUM_SENSORS]={0}; // SCD30 humidity measurements
 static float temp_meas[NUM_SENSORS]={0}; // SCD30 temperature measurements
 
-// BME68x sensor
+// BME688 sensor
 #define NEW_GAS_MEAS (BME688_GASM_VALID_MSK | BME688_HEAT_STAB_MSK | BME688_NEW_DATA_MSK)
 // #define GasSensing
 static Bme68x bme;
 static float bme_temp = 0;
 static float bme_press = 0;
 static float bme_rh = 0;
-static bool bme_data_valid = false; // Track valid BME68x data
+static bool bme_data_valid = false; // Track valid BME688 data
 #ifdef GasSensing
 static float bme_gas_res = 0;
 static uint8_t bme_status = 0;
@@ -372,7 +372,7 @@ static void init_sensor(uint8_t sensor_nb) {
     parametriseSensors(sensor_nb);
 }
 
-// Initialize the BME68x sensor
+// Initialize the BME688 sensor
 static void init_bme688() {
     bme.begin(0x77, Wire);
     delay(1000);
@@ -380,17 +380,17 @@ static void init_bme688() {
     if (!success) {
         if (bme.checkStatus() == BME68X_ERROR) {
             #ifdef DEBUG
-            Serial.println("BME68x error: " + bme.statusString());
+            Serial.println("BME688 error: " + bme.statusString());
             #endif
         } else if (bme.checkStatus() == BME68X_WARNING) {
             #ifdef DEBUG
-            Serial.println("BME68x Warning: " + bme.statusString());
+            Serial.println("BME688 Warning: " + bme.statusString());
             #endif
         }
     }
     displayInitStatus(0, success, true);
     while (!success) {
-        Serial.println("Error: Could not connect to BME68x");
+        Serial.println("Error: Could not connect to BME688");
         delay(500);
         bme.begin(0x77, Wire);
         delay(1000);
@@ -398,7 +398,7 @@ static void init_bme688() {
         displayInitStatus(0, success, true);
     }
 
-    Serial.println("Connected to BME68x");
+    Serial.println("Connected to BME688");
 
     bme.setTPH();
 #ifdef GasSensing
@@ -505,7 +505,7 @@ String format_log(uint8_t sensor_nb) {
 
 // Format BME68x log
 String format_bme688_log() {
-    String output = "[BME68x, ";
+    String output = "[BME688, ";
     if (!bme_data_valid) {
         output = output + "No data]";
     } else {
@@ -585,7 +585,7 @@ void get_data_from_sensor(int number) {
     }
 }
 
-// Get data from BME68x sensor
+// Get data from BME688 sensor
 void get_data_from_bme688() {
     static unsigned long wait_start = 0;
     static bool waiting = false;
@@ -619,7 +619,7 @@ void get_data_from_bme688() {
         } while (nFieldsLeft);
         if (new_data) {
             #ifdef DEBUG
-            Serial.print("New BME68x data: ");
+            Serial.print("New BME688 data: ");
             Serial.print(bme_temp, 1);
             Serial.print(" °C, ");
             Serial.print(bme_press, 0);
@@ -638,7 +638,7 @@ void get_data_from_bme688() {
             #endif
         } else if (millis() - wait_start >= 1000) {
             #ifdef DEBUG
-            Serial.println("Error: No valid BME68x data");
+            Serial.println("Error: No valid BME688 data");
             #endif
             resetI2C();
         }
@@ -707,7 +707,7 @@ void command_handler(String command) {
         Serial.println("Command not recognized");
         Serial.println("Recognized commands:");
         Serial.println("  - \"Init\": Resets the serial buffer and initializes SCD30 communication");
-        Serial.println("  - \"Get data\": Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME68x data");
+        Serial.println("  - \"Get data\": Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data");
         Serial.println("  - \"CalibrateAll\": Calibrates all SCD30 sensors to 400 ppm CO2");
         Serial.println("  - \"Calibrate SCD30 x\": Calibrates SCD30 SCD30 x to 400 ppm CO2");
       
