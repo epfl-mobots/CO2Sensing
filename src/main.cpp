@@ -4,7 +4,7 @@ with additional BME688 sensor for weather data.
 
   Recognized commands from serial:
     - "Init"          : Resets the serial buffer and initializes sensor communication
-    - "GetData"      : Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data
+    - "Get data"      : Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data
     - "CalibrateAll"  : Calibrates all SCD30 sensors to 400 ppm CO2
     - "Calibrate sensor x"  : Calibrates SCD30 sensor x to 400 ppm CO2
 
@@ -33,6 +33,16 @@ with additional BME688 sensor for weather data.
     - SCD30 sensors are polled every SENSING_INTERVAL seconds (one sensor every ~SENSING_INTERVAL*1000/NUM_SENSORS ms).
     - BME688 sensor is polled every SENSING_INTERVAL seconds.
     - Serial output is printed every SERIAL_INTERVAL seconds if SERIAL_DISPLAY is defined, or on "Get data" command.
+
+  Output ("Get data") style : 
+[SCD30 1, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[SCD30 2, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[SCD30 3, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[SCD30 4, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[SCD30 5, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[SCD30 6, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
+[BME688, {<temperature_C>, <pressure_Pa>, <humidity_%>}]
+
 */
 #include "M5StickCPlus.h"
 #include "SparkFun_SCD30_Arduino_Library.h"
@@ -54,6 +64,8 @@ with additional BME688 sensor for weather data.
 
 //#define DEBUG
 //#define SERIAL_DISPLAY // Enable serial output every SERIAL_INTERVAL
+// [BME688, {<temperature_C>, <pressure_Pa>, <humidity_%>, <gas_resistance_ohm>, <status_HEX>, <gas_index>}]
+
 const static bool display = true;
 
 static SCD30 sensors[NUM_SENSORS]; // Array of SCD30 sensors
@@ -663,7 +675,7 @@ void command_handler(String command) {
         }
         init_bme688();
     }
-    else if (command == "GetData") {
+    else if (command == "Get data") {
         for (int i = 0; i < NUM_SENSORS; i++) {
             Serial.println(format_log(i));
         }
