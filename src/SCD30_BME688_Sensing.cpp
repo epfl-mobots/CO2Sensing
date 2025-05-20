@@ -7,6 +7,7 @@ with additional BME688 sensor for weather data.
     - "Get data"      : Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data
     - "CalibrateAll"  : Calibrates all SCD30 sensors to 400 ppm CO2
     - "Calibrate sensor x"  : Calibrates SCD30 sensor x to 400 ppm CO2
+    - "Get name"      : Returns the device name "M5Stick2"
 
   M5StickCPlus button commands:
     - M5 button (A) press            : Navigate through SCD30 sensors 1–6 (highlight selected one) in CO2, Temp, Humidity modes
@@ -42,8 +43,8 @@ with additional BME688 sensor for weather data.
 [SCD30 5, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
 [SCD30 6, {<CO2_ppm>, <temperature_C>, <humidity_%>}]
 [BME688, {<temperature_C>, <pressure_Pa>, <humidity_%>}]
-
 */
+
 #include "M5StickCPlus.h"
 #include "SparkFun_SCD30_Arduino_Library.h"
 #include "bme68xLibrary.h"
@@ -53,6 +54,9 @@ with additional BME688 sensor for weather data.
  * SPDX-License-Identifier: BSD-3-Clause
  * 
  */
+
+// Unique device name for this M5StickC Plus
+const char* DEVICE_NAME = "M5Stick2";
 
 #define NUM_SENSORS 6 // Number of SCD30 sensors connected to the TCA9548A
 #define SENSING_INTERVAL 8 // Seconds
@@ -664,7 +668,9 @@ void command_handler(String command) {
     Serial.print("Command was: ");
     Serial.println(command);
     #endif
-    if (command == "Init") {
+    if (command == "Get name") {
+        Serial.println(DEVICE_NAME);
+    } else if (command == "Init") {
         clearSerialBuffer();
         #ifdef DEBUG
         Serial.println("Buffer successfully reset, switches turned on");
@@ -674,14 +680,12 @@ void command_handler(String command) {
             delay(SENSING_INTERVAL*1000/(NUM_SENSORS+1));
         }
         init_bme688();
-    }
-    else if (command == "Get data") {
+    } else if (command == "Get data") {
         for (int i = 0; i < NUM_SENSORS; i++) {
             Serial.println(format_log(i));
         }
         Serial.println(format_bme688_log());
-    }
-    else if (command == "CalibrateAll") {
+    } else if (command == "CalibrateAll") {
         #ifdef DEBUG
         Serial.println("Calibrating all SCD30 sensors");
         #endif
@@ -694,8 +698,7 @@ void command_handler(String command) {
         } else {
             displaySensorStates();
         }
-    }
-    else if (command.startsWith("Calibrate SCD30 ")) {
+    } else if (command.startsWith("Calibrate SCD30 ")) {
         String sensor_num_str = command.substring(16);
         sensor_num_str.trim();
         int sensor_num = sensor_num_str.toInt();
@@ -714,15 +717,14 @@ void command_handler(String command) {
             Serial.printf("Error: Invalid SCD30 number %s (must be 1 to %d)\n", sensor_num_str.c_str(), NUM_SENSORS);
             #endif
         }
-    }
-    else {
+    } else {
         Serial.println("Command not recognized");
         Serial.println("Recognized commands:");
         Serial.println("  - \"Init\": Resets the serial buffer and initializes SCD30 communication");
         Serial.println("  - \"Get data\": Prints the latest CO2, temperature, and humidity measurements for all SCD30 sensors and BME688 data");
         Serial.println("  - \"CalibrateAll\": Calibrates all SCD30 sensors to 400 ppm CO2");
-        Serial.println("  - \"Calibrate SCD30 x\": Calibrates SCD30 SCD30 x to 400 ppm CO2");
-      
+        Serial.println("  - \"Calibrate SCD30 x\": Calibrates SCD30 sensor x to 400 ppm CO2");
+        Serial.println("  - \"Get name\": Returns the device name");
     }
 }
 
