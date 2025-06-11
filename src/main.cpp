@@ -195,12 +195,12 @@ void get_data_from_sensor(int number){
         Serial.println(output);
         #endif
     }
-    // #ifdef DEBUG
-    // else{
-    //     Serial.print("No data available for sensor: ");
-    //     Serial.println(number);
-    // }
-    // #endif
+    #ifdef DEBUG
+    else{
+        Serial.print("No data available for sensor: ");
+        Serial.println(number);
+    }
+    #endif
 }
 
 void command_handler(String command){
